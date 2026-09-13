@@ -36,7 +36,7 @@
         "num_edital": "Pregão Eletrônico nº 08/2026",
         "empresa_contratada": "Em Definição",
         "cnpj_empresa": "N/A",
-        "autor": "Carlos Alberto (Diretor) (CPF: 123.456.789-00)",
+        "autor": "Carlos Alberto (Diretor) (ID: diretor)",
         "previous_hash": "c4c8c6f7298c68364a0c7d13f75408b8caf786d685afd6f8b43bad343d7f0752",
         "hash": "3172bd6c76fb2c36845df0bb0e71ffbf81e60867140ea93725c68d11dcd1027c",
         "assinatura_digital": "526d44e48c3d366f62c917b1119ef5a66582a7909b09532c65729b39d7ced333"
@@ -57,7 +57,7 @@
         "num_edital": "Dispensa de Licitação nº 02/2026",
         "empresa_contratada": "Alfa Construções e Reformas EIRELI",
         "cnpj_empresa": "12.345.678/0001-90",
-        "autor": "Mariana Souza (Chefe de Secretaria) (CPF: 987.654.321-11)",
+        "autor": "Mariana Souza (Chefe de Secretaria) (ID: secretaria)",
         "previous_hash": "3172bd6c76fb2c36845df0bb0e71ffbf81e60867140ea93725c68d11dcd1027c",
         "hash": "5ce1556a7bcdeab490c87efad0e2d4585b60d2920be1f1d3f29164a06aaa4ad6",
         "assinatura_digital": "3212c94ec9be22fc6690d375cb0bd03f11882ecc5959b9a43570def88c4c5aa6"
@@ -78,7 +78,7 @@
         "num_edital": "N/A",
         "empresa_contratada": "N/A",
         "cnpj_empresa": "N/A",
-        "autor": "Carlos Alberto (Diretor) (CPF: 123.456.789-00)",
+        "autor": "Carlos Alberto (Diretor) (ID: diretor)",
         "previous_hash": "5ce1556a7bcdeab490c87efad0e2d4585b60d2920be1f1d3f29164a06aaa4ad6",
         "hash": "dcf582f36051db9b5f9792682157633cb9c45c549d15c8d3bc6f874e0801e1cf",
         "assinatura_digital": "210cb221f086f20f7ef11b0aed358eed76e4bed975c0d94f657eaac82e5c90e7"
@@ -99,7 +99,7 @@
         "num_edital": "TOMADA DE PREÇOS N° 01/2026",
         "empresa_contratada": "N/A",
         "cnpj_empresa": "N/A",
-        "autor": "Carlos Alberto (Diretor) (CPF: 123.456.789-00)",
+        "autor": "Carlos Alberto (Diretor) (ID: diretor)",
         "previous_hash": "dcf582f36051db9b5f9792682157633cb9c45c549d15c8d3bc6f874e0801e1cf",
         "hash": "96c980165e7a6a53a4b8e9f0ccf911bb1b1f19c15c0e7e75155aa819ec1aaa25",
         "assinatura_digital": "c428b10514427b90971798ce7343a42ed93d042cc08e512cd6053c5b3fc5ff19"
@@ -120,7 +120,7 @@
         "num_edital": "TOMADA DE PREÇOS N° 01/2026",
         "empresa_contratada": "OBRAS E REFORMAS LTDA.",
         "cnpj_empresa": "01.002.003/0001-00",
-        "autor": "Carlos Alberto (Diretor) (CPF: 123.456.789-00)",
+        "autor": "Carlos Alberto (Diretor) (ID: diretor)",
         "previous_hash": "96c980165e7a6a53a4b8e9f0ccf911bb1b1f19c15c0e7e75155aa819ec1aaa25",
         "hash": "8a7782446dfa5b2711dc420bcb582363a7de4aba321b6832e28b842b5729f3ff",
         "assinatura_digital": "e9899a39a0db1c3ba48668e6d439fc74fd513fdecfc1284b0e81bb78099f20e1"
@@ -141,7 +141,7 @@
         "num_edital": "CONTRATO N° 01/2026 SEEDF",
         "empresa_contratada": "OBRAS E REFORMAS LTDA.",
         "cnpj_empresa": "01.002.003/0001-00",
-        "autor": "Carlos Alberto (Diretor) (CPF: 123.456.789-00)",
+        "autor": "Carlos Alberto (Diretor) (ID: diretor)",
         "previous_hash": "8a7782446dfa5b2711dc420bcb582363a7de4aba321b6832e28b842b5729f3ff",
         "hash": "bf488262c3d1fd8d4b74669c50b302f31c2a31b9e78d055271d2a5025bd0dcb4",
         "assinatura_digital": "cd52e6c43616d6d69a1e95fccbc7668b71819114c3ad213350608a7bc6fa3126"
@@ -162,7 +162,7 @@
         "num_edital": "CONTRATO N° 01/2026 SEEDF",
         "empresa_contratada": "OBRAS E REFORMAS LTDA.",
         "cnpj_empresa": "01.002.003/0001-00",
-        "autor": "Carlos Alberto (Diretor) (CPF: 123.456.789-00)",
+        "autor": "Carlos Alberto (Diretor) (ID: diretor)",
         "previous_hash": "bf488262c3d1fd8d4b74669c50b302f31c2a31b9e78d055271d2a5025bd0dcb4",
         "hash": "57214fd067b0c058a1676a2000218a8b642a4387399c13f8342a0a738a24ae6d",
         "assinatura_digital": "0f465e21f8070260a7672c6d376bc4cf7e5cd7e4c11b25566cd8eb21f81e3409"

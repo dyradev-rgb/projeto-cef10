@@ -17,8 +17,14 @@ import json
 from fpdf import FPDF
 import io
 import datetime
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+# [AUDITORIA-04] caminhos absolutos a partir de __file__ (antes dependiam
+# do diretorio corrente, quebrando o app quando executado fora da raiz).
+RAIZ_PROJETO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+sys.path.insert(0, RAIZ_PROJETO)
+
 from scripts.blockchain_cef10 import BlockchainCEF10
+from config.seguranca import carregar_credenciais, verificar_senha
 
 st.set_page_config(
     page_title="Transparência CEF 10 - Portal Cidadão",
@@ -26,40 +32,41 @@ st.set_page_config(
     layout="wide"
 )
 
-IMAGENS_DIR = "data/imagens"
-JSON_PATH = "data/ledger_cef10.json"
+IMAGENS_DIR = os.path.join(RAIZ_PROJETO, "data", "imagens")
+JSON_PATH = os.path.join(RAIZ_PROJETO, "data", "ledger_cef10.json")
 os.makedirs(IMAGENS_DIR, exist_ok=True)
 
+# [AUDITORIA-05] a ledger grava caminhos relativos a raiz do projeto;
+# este helper resolve a evidencia independente do CWD.
+def localizar_evidencia(caminho):
+    if caminho in ("N/A", ""):
+        return caminho
+    if os.path.isabs(caminho):
+        return caminho
+    return os.path.join(RAIZ_PROJETO, caminho)
+
+# ==========================================
+# CARGA DE CREDENCIAIS - [AUDITORIA-02]
+# Usuarios, senhas (hash PBKDF2) e chaves HMAC NAO ficam mais no codigo.
+# Vem de config/seguranca.py (st.secrets ou .streamlit/secrets.toml).
+# ==========================================
+try:
+    CREDENCIAIS = carregar_credenciais()
+    USUARIOS_SISTEMA = CREDENCIAIS["users"]
+    CHAVE_GENESIS = CREDENCIAIS["geral"].get("chave_genesis", "")
+except RuntimeError as e:
+    st.error(f"**Credenciais não configuradas.**\n\n{e}")
+    st.stop()
+
 if 'cofre_escola' not in st.session_state:
-    st.session_state.cofre_escola = BlockchainCEF10(filepath=JSON_PATH)
+    # [AUDITORIA-02] credenciais e chave do genesis vindas do secrets.
+    st.session_state.cofre_escola = BlockchainCEF10(
+        filepath=JSON_PATH,
+        credenciais=USUARIOS_SISTEMA,
+        chave_genesis=CHAVE_GENESIS,
+    )
 
 cofre = st.session_state.cofre_escola
-
-# ==========================================
-# MATRIZ DE USUÁRIOS, NÍVEIS DE ACESSO E CHAVES
-# ==========================================
-USUARIOS_SISTEMA = {
-    # SUPERUSUÁRIO DE AUDITORIA E APRESENTAÇÃO
-    "000.000.000-00": {
-        "nome": "Administrador do Sistema (Root)",
-        "senha": "admin",
-        "role": "admin",
-        "chave_privada": "CHAVE_PRIVADA_ADMIN_ROOT_2026"
-    },
-    # GESTORES ESCOLARES OFICIAIS
-    "123.456.789-00": {
-        "nome": "Carlos Alberto (Diretor)", 
-        "senha": "123",
-        "role": "gestor",
-        "chave_privada": "CHAVE_PRIVADA_DIRETOR_CARLOS_2026"
-    },
-    "987.654.321-11": {
-        "nome": "Mariana Souza (Chefe de Secretaria)", 
-        "senha": "123",
-        "role": "gestor",
-        "chave_privada": "CHAVE_PRIVADA_SECRETARIA_MARIANA_2026"
-    }
-}
 
 DICIONARIO_CIDADAO = {
     "1. Empenhado / Alocado": "Dinheiro reservado e garantido pelo governo para este projeto específico.",
@@ -72,9 +79,12 @@ DICIONARIO_CIDADAO = {
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
     st.session_state.nome_gestor = ""
-    st.session_state.cpf_gestor = ""
+    st.session_state.id_gestor = ""
     st.session_state.role_gestor = ""
     st.session_state.chave_privada = ""
+    # [AUDITORIA-06] contadores do rate-limit de login
+    st.session_state.tentativas_login = 0
+    st.session_state.bloqueio_ate = None
 
 # ==========================================
 # AUDITORIA E VALIDAÇÃO AUTOMÁTICA DA CADEIA
@@ -87,34 +97,59 @@ cadeia_integra, mensagem_auditoria, idx_corrompido = cofre.validar_cadeia(USUARI
 st.sidebar.header("🔐 Portal de Acesso Restrito")
 
 if not st.session_state.autenticado:
-    cpf_input = st.sidebar.text_input("CPF do Usuário", placeholder="Ex: 000.000.000-00")
+    # [AUDITORIA-02/06] Login por identificador (ID) + senha com hash PBKDF2
+    # e trava progressiva: 5 erros -> bloqueio de 30s.
+    id_input = st.sidebar.text_input("Identificador do Gestor", placeholder="Ex: diretor")
     senha_input = st.sidebar.text_input("Senha Pessoal", type="password")
     btn_login = st.sidebar.button("Entrar no Sistema")
 
+    agora = datetime.datetime.now()
+
+    # Podia ter esgotado durante a sessao: fecha o bloqueio expirado.
+    if st.session_state.bloqueio_ate and agora >= st.session_state.bloqueio_ate:
+        st.session_state.bloqueio_ate = None
+        st.session_state.tentativas_login = 0
+
     if btn_login:
-        if cpf_input in USUARIOS_SISTEMA:
-            if senha_input == USUARIOS_SISTEMA[cpf_input]["senha"]:
+        if st.session_state.bloqueio_ate:
+            restante = int((st.session_state.bloqueio_ate - agora).total_seconds())
+            st.sidebar.error(f"🚫 Muitas tentativas. Aguarde {restante}s e tente novamente.")
+        elif id_input in USUARIOS_SISTEMA:
+            usuario = USUARIOS_SISTEMA[id_input]
+            # Comparacao em tempo constante (sem vazamento de timing)
+            if verificar_senha(usuario["hash_senha"], senha_input):
                 st.session_state.autenticado = True
-                st.session_state.nome_gestor = USUARIOS_SISTEMA[cpf_input]["nome"]
-                st.session_state.cpf_gestor = cpf_input
-                st.session_state.role_gestor = USUARIOS_SISTEMA[cpf_input]["role"]
-                st.session_state.chave_privada = USUARIOS_SISTEMA[cpf_input]["chave_privada"]
+                st.session_state.nome_gestor = usuario["nome"]
+                st.session_state.id_gestor = id_input
+                st.session_state.role_gestor = usuario["role"]
+                st.session_state.chave_privada = usuario["chave"]
+                st.session_state.tentativas_login = 0
+                st.session_state.bloqueio_ate = None
                 st.rerun()
             else:
-                st.sidebar.error("Senha incorreta.")
+                st.session_state.tentativas_login += 1
+                restantes = 5 - st.session_state.tentativas_login
+                if st.session_state.tentativas_login >= 5:
+                    st.session_state.bloqueio_ate = agora + datetime.timedelta(seconds=30)
+                    st.session_state.tentativas_login = 0
+                    st.sidebar.error("🚫 Senha incorreta repetida. Acesso bloqueado por 30s.")
+                else:
+                    st.sidebar.error(f"Senha incorreta. ({restantes} tentativa(s) restante(s)).")
         else:
-            st.sidebar.error("CPF não cadastrado.")
+            st.sidebar.error("Identificador não cadastrado.")
     st.sidebar.info("💡 **Modo Cidadão:** Consulta pública e transparente ativada.")
 else:
     st.sidebar.success(f"Sessão Ativa:\n**{st.session_state.nome_gestor}**")
-    st.sidebar.markdown(f"**Perfil:** `{st.session_state.role_gestor.upper()}` | **CPF:** `{st.session_state.cpf_gestor}`")
-    
+    st.sidebar.markdown(f"**Perfil:** `{st.session_state.role_gestor.upper()}` | **ID:** `{st.session_state.id_gestor}`")
+
     if st.sidebar.button("🚪 Fazer Logout"):
         st.session_state.autenticado = False
         st.session_state.nome_gestor = ""
-        st.session_state.cpf_gestor = ""
+        st.session_state.id_gestor = ""
         st.session_state.role_gestor = ""
         st.session_state.chave_privada = ""
+        st.session_state.tentativas_login = 0
+        st.session_state.bloqueio_ate = None
         st.rerun()
 
 # ==========================================
@@ -256,19 +291,33 @@ if st.session_state.autenticado:
             if descricao_input and valor_input >= 0:
                 caminho_foto_final = "N/A"
                 if arquivo_upload is not None:
-                    caminho_arquivo = os.path.join(IMAGENS_DIR, arquivo_upload.name)
-                    with open(caminho_arquivo, "wb") as f:
-                        f.write(arquivo_upload.getbuffer())
-                    caminho_arquivo_final = caminho_arquivo
+                    # [AUDITORIA-07] CORRECAO do bug: era usado caminho_arquivo_final
+                    # (nunca definido) -> NameError sem anexo. Agora existe UMA
+                    # variavel so (caminho_foto_final).
+                    # [AUDITORIA-08] Sanitizacao do upload: usa apenas o basename
+                    # (mata path traversal via ../) e revalida a extensao no servidor.
+                    nome_limpo = os.path.basename(arquivo_upload.name).replace("\\", "/").split("/")[-1]
+                    extensao = os.path.splitext(nome_limpo)[1].lower()
+                    extensoes_permitidas = {".jpg", ".jpeg", ".png", ".pdf"}
+                    if nome_limpo.startswith(".") or ".." in nome_limpo:
+                        st.sidebar.error("Nome de arquivo inválido. Anexo não salvo.")
+                    elif extensao not in extensoes_permitidas:
+                        st.sidebar.error(f"Extensão '{extensao}' não permitida. Anexo não salvo.")
+                    else:
+                        caminho_foto_final = os.path.join(IMAGENS_DIR, nome_limpo)
+                        with open(caminho_foto_final, "wb") as f:
+                            f.write(arquivo_upload.getbuffer())
 
-                autor_completo = f"{st.session_state.nome_gestor} (CPF: {st.session_state.cpf_gestor})"
-                
+                # [AUDITORIA-02] autor identificado por "(ID: <usuario>)",
+                # sem CPF nem outros dados pessoais no ledger.
+                autor_completo = f"{st.session_state.nome_gestor} (ID: {st.session_state.id_gestor})"
+
                 cofre.adicionar_bloco(
                     descricao=descricao_input,
                     valor=valor_input,
                     status=status_input,
                     justificativa=justificativa_input,
-                    foto_path=caminho_arquivo_final,
+                    foto_path=caminho_foto_final,
                     origem=origem_input,
                     responsavel=responsavel_input if responsavel_input.strip() else "Não informado",
                     empenho=empenho_input if empenho_input.strip() else "N/A",
@@ -475,20 +524,22 @@ def renderizar_lista_projetos(filtro_status=None):
                     st.write(f"🆔 **CNPJ:** `{bloco_atual.cnpj_empresa}`")
 
             # EXIBIÇÃO INTELIGENTE DE PDF OU IMAGEM
-            if bloco_atual.foto_path != "N/A" and os.path.exists(bloco_atual.foto_path):
+            # [AUDITORIA-05] resolve caminho relativo contra a raiz do projeto
+            caminho_evidencia = localizar_evidencia(bloco_atual.foto_path)
+            if bloco_atual.foto_path != "N/A" and os.path.exists(caminho_evidencia):
                 if bloco_atual.foto_path.lower().endswith('.pdf'):
-                    with open(bloco_atual.foto_path, "rb") as f:
+                    with open(caminho_evidencia, "rb") as f:
                         # Define uma tag de aba para garantir chaves 100% únicas entre abas
                         aba_tag = filtro_status if filtro_status else "todos"
                         st.download_button(
                             label="📄 Baixar Documento Oficial (PDF)",
                             data=f,
-                            file_name=os.path.basename(bloco_atual.foto_path),
+                            file_name=os.path.basename(caminho_evidencia),
                             mime="application/pdf",
                             key=f"pdf_{bloco_atual.hash}_{aba_tag}" # Chave única por aba
                         )
                 else:
-                    st.image(bloco_atual.foto_path, width=500)
+                    st.image(caminho_evidencia, width=500)
 
             st.divider()
             st.markdown("🌿 **Histórico e Evolução da Obra (Árvore de Blocos):**")

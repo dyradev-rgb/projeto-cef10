@@ -24,5 +24,40 @@ Este projeto foi desenvolvido como requisito da **Atividade Extensionista II (CS
 
 1. **Clone o repositório:**
    ```bash
-   git clone [https://github.com/dyegoalquimim/projeto-cef10.git](https://github.com/dyegoalquimim/projeto-cef10.git)
+   git clone [https://github.com/dyradev-rgb/projeto-cef10.git](https://github.com/dyradev-rgb/projeto-cef10.git)
    cd projeto-cef10
+   ```
+
+2. **Crie um ambiente virtual e instale as dependências:**
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate        # Linux/macOS
+   .venv\Scripts\activate           # Windows
+   pip install -r requirements.txt
+   ```
+
+3. **Gere as credenciais locais** (senhas hasheadas PBKDF2 + chaves HMAC aleatórias, fora do repositório):
+   ```bash
+   python scripts/gerar_credenciais.py
+   python scripts/migrar_ledger.py   # re-assina a ledger demo com as novas chaves
+   ```
+   > ⚠️ Nunca regenere as credenciais depois sem rodar `scripts/migrar_ledger.py` novamente.
+
+4. **Execute o portal:**
+   ```bash
+   streamlit run app/app.py
+   ```
+   Usuários de demonstração: `admin/admin` (Root), `diretor/123`, `secretaria/123`.
+
+5. **Validação independente da cadeia** (hash, encadeamento e assinaturas):
+   ```bash
+   python tests/validar_ledger.py
+   ```
+
+## 🔐 Notas de Segurança (aplicadas nesta versão)
+* Credenciais removidas do código-fonte → `config/seguranca.py` + `.streamlit/secrets.toml` (não versionado).
+* Senhas armazenadas como hash **PBKDF2-SHA256** e comparadas em tempo constante.
+* **Rate-limit** de login (trava de 30s após 5 tentativas erradas).
+* Upload de evidências sanitizado (basename + revisão de extensão no servidor).
+* Hash dos blocos **canônico** (`timestamp.isoformat()`), foto_path com separador `/` (portável).
+* Gestores identificados por `ID` no ledger, sem CPF/nomes pessoais no JSON público.

@@ -3,6 +3,17 @@
 # Autor: Dyego Alquimim
 # Objetivo: Garantir imutabilidade, status de obras, 
 # evidências visuais e persistência de dados em arquivo.
+#
+# -------- REGISTRO DE CORRECOES DESTA VERSAO --------
+# [AUDITORIA-01] Hash canonico: calcular_hash() agora usa timestamp
+#                .isoformat() (formato "T" ISO-8601) em vez de str().
+#                Antes o mesmo conteudo podia gerar 2 hashes diferentes
+#                (espaco vs T), tornando a integridade fragmentada.
+# [AUDITORIA-02] Chaves HMAC e identificadores de gestor deixaram de
+#                ser CPF/chaves hardcoded. A partir de agora as chaves
+#                vêm de config/seguranca.py (st.secrets / secrets.toml).
+# [AUDITORIA-03] foto_path normalizado para "/" (era gravado com "\"
+#                no Windows e nao renderizava em outros sistemas).
 # ==========================================
 import pandas as pd
 import hashlib
@@ -24,55 +35,65 @@ class BlocoFinanceiro:
             self.timestamp = datetime.datetime.fromisoformat(timestamp)
         else:
             self.timestamp = timestamp
-            
+
         self.projeto_id = projeto_id
-        self.tipo_registro = tipo_registro            
+        self.tipo_registro = tipo_registro
         self.descricao = descricao
         self.valor = valor
-        self.status = status                  
-        self.justificativa = justificativa    
-        self.foto_path = foto_path            
-        self.origem_recurso = origem_recurso          
-        self.responsavel_indicacao = responsavel_indicacao  
-        
+        self.status = status
+        self.justificativa = justificativa
+        # [AUDITORIA-03] caminho normalizado (nunca com "\")
+        self.foto_path = self.normalizar_caminho(foto_path)
+        self.origem_recurso = origem_recurso
+        self.responsavel_indicacao = responsavel_indicacao
+
         # Campos Oficiais de Auditoria do Governo
-        self.num_empenho = num_empenho                
-        self.num_edital = num_edital                  
-        self.empresa_contratada = empresa_contratada  
-        self.cnpj_empresa = cnpj_empresa              
-        
-        self.autor = autor                            
+        self.num_empenho = num_empenho
+        self.num_edital = num_edital
+        self.empresa_contratada = empresa_contratada
+        self.cnpj_empresa = cnpj_empresa
+
+        self.autor = autor
         self.previous_hash = previous_hash
         self.hash = hash_atual if hash_atual else self.calcular_hash()
-        
+
         # Camada de Assinatura Digital HMAC
         self.assinatura_digital = assinatura_digital if assinatura_digital else "N/A"
 
+    @staticmethod
+    def normalizar_caminho(caminho):
+        """[AUDITORIA-03] Garante separador posix nos caminhos gravados."""
+        if caminho in ("N/A", None, ""):
+            return "N/A"
+        return caminho.replace("\\", "/")
+
     def calcular_hash(self):
-        """Gera a assinatura SHA-256 baseada no conteúdo exato do bloco."""
+        # [AUDITORIA-01] Canonico: usa .isoformat() (com "T").
+        # Corrige a inconsistencia anterior em que str(datetime) (espaco)
+        # era usado aqui mas to_dict() gravava ISO (T).
         conteudo = (
-            str(self.index) + 
-            str(self.timestamp) + 
+            str(self.index) +
+            self.timestamp.isoformat() +
             str(self.projeto_id) +
             str(self.tipo_registro) +
-            str(self.descricao) + 
-            str(self.valor) + 
-            str(self.status) + 
-            str(self.justificativa) + 
-            str(self.foto_path) + 
+            str(self.descricao) +
+            str(self.valor) +
+            str(self.status) +
+            str(self.justificativa) +
+            str(self.foto_path) +
             str(self.origem_recurso) +
             str(self.responsavel_indicacao) +
             str(self.num_empenho) +
             str(self.num_edital) +
             str(self.empresa_contratada) +
             str(self.cnpj_empresa) +
-            str(self.autor) + 
+            str(self.autor) +
             str(self.previous_hash)
         )
         return hashlib.sha256(conteudo.encode('utf-8')).hexdigest()
 
     def assinar_bloco(self, chave_privada_gestor):
-        """Gera uma assinatura digital HMAC-SHA256 usando a chave privada do gestor."""
+        """Gera uma assinatura digital HMAC-SHA256 usando a chave secreta do gestor."""
         self.assinatura_digital = hmac.new(
             chave_privada_gestor.encode('utf-8'),
             self.hash.encode('utf-8'),
@@ -82,14 +103,14 @@ class BlocoFinanceiro:
     def verificar_assinatura(self, chave_privada_gestor):
         """Valida se a assinatura gravada bate com a chave secreta do autor."""
         if self.assinatura_digital == "N/A":
-            return True # Bloco gênesis
-        
+            return True  # Bloco genesis
+
         assinatura_esperada = hmac.new(
             chave_privada_gestor.encode('utf-8'),
             self.hash.encode('utf-8'),
             hashlib.sha256
         ).hexdigest()
-        
+
         return hmac.compare_digest(self.assinatura_digital, assinatura_esperada)
 
     def to_dict(self):
@@ -102,7 +123,8 @@ class BlocoFinanceiro:
             "valor": self.valor,
             "status": self.status,
             "justificativa": self.justificativa,
-            "foto_path": self.foto_path,
+            # [AUDITORIA-03] gravado sempre com separador "/"
+            "foto_path": self.normalizar_caminho(self.foto_path),
             "origem_recurso": self.origem_recurso,
             "responsavel_indicacao": self.responsavel_indicacao,
             "num_empenho": self.num_empenho,
@@ -115,10 +137,15 @@ class BlocoFinanceiro:
             "assinatura_digital": self.assinatura_digital
         }
 
+
 class BlockchainCEF10:
-    def __init__(self, filepath="data/ledger_cef10.json"):
+    def __init__(self, filepath="data/ledger_cef10.json", credenciais=None, chave_genesis=None):
         self.filepath = filepath
         self.quarentena_dir = "data/quarentena"
+        # [AUDITORIA-02] credenciais e chave do genesis vêm de config/seguranca.py.
+        # Na ausencia, tenta carregar do secrets local em _gerar_base_inicial.
+        self.credenciais = credenciais if credenciais is not None else {}
+        self.chave_genesis = chave_genesis
         self.ensure_data_dir()
         self.chain = self.carregar_chain()
 
@@ -129,7 +156,13 @@ class BlockchainCEF10:
         if not os.path.exists(self.quarentena_dir):
             os.makedirs(self.quarentena_dir, exist_ok=True)
 
-    def criar_bloco_genesis(self):
+    # [AUDITORIA-02] chave do genesis recebida por parametro (nunca hardcoded).
+    def criar_bloco_genesis(self, chave_genesis=None):
+        if not chave_genesis:
+            raise RuntimeError(
+                "Chave do bloco genesis nao configurada. "
+                "Gere credenciais: python scripts/gerar_credenciais.py"
+            )
         bloco = BlocoFinanceiro(
             index=0,
             timestamp=datetime.datetime.now(),
@@ -149,33 +182,50 @@ class BlockchainCEF10:
             autor="Sistema / Governança Central",
             previous_hash="0"
         )
-        bloco.assinar_bloco("CHAVE_SISTEMA_GENESIS_2026")
+        bloco.assinar_bloco(chave_genesis)
         return bloco
 
     def gerar_projeto_id(self, descricao):
         return re.sub(r'[^a-z0-9]', '_', descricao.lower().strip())
 
-    def _gerar_base_inicial(self):
-        """Gera os blocos limpos autênticos de demonstração e salva no disco."""
-        self.chain = [self.criar_bloco_genesis()]
-        
+    # [AUDITORIA-02] base de demonstracao sem CPF e sem chaves hardcoded;
+    # identifica gestor por "(ID: <id>)" e assina com a chave do secrets.
+    def _gerar_base_inicial(self, credenciais=None, chave_genesis=None):
+        credenciais = credenciais if credenciais is not None else self.credenciais
+        chave_genesis = chave_genesis or self.chave_genesis
+        if not chave_genesis:
+            raise RuntimeError(
+                "Chave do bloco genesis nao configurada. "
+                "Gere credenciais: python scripts/gerar_credenciais.py"
+            )
+
+        diretor = credenciais.get("diretor", {})
+        secretaria = credenciais.get("secretaria", {})
+        if not diretor.get("chave") or not secretaria.get("chave"):
+            raise RuntimeError(
+                "Usuarios 'diretor' e 'secretaria' devem existir nas credenciais "
+                "para gerar a base de demonstracao."
+            )
+
+        self.chain = [self.criar_bloco_genesis(chave_genesis)]
+
         self._adicionar_bloco_interno(
-            "Manutenção Preventiva de Informática", 15000.00, 
-            "2. Em Licitação", "Aguardando homologação do pregão eletrônico.", 
-            "N/A", 
-            "Tesouro / Recursos Próprios da SEEDF", "Diretoria de Ensino", 
+            "Manutenção Preventiva de Informática", 15000.00,
+            "2. Em Licitação", "Aguardando homologação do pregão eletrônico.",
+            "N/A",
+            "Tesouro / Recursos Próprios da SEEDF", "Diretoria de Ensino",
             "2026NE00412", "Pregão Eletrônico nº 08/2026", "Em Definição", "N/A",
-            "Carlos Alberto (Diretor) (CPF: 123.456.789-00)", "Criacao",
-            chave_privada="CHAVE_PRIVADA_DIRETOR_CARLOS_2026"
+            "Carlos Alberto (Diretor) (ID: diretor)", "Criacao",
+            chave_privada=diretor["chave"]
         )
         self._adicionar_bloco_interno(
-            "Reforma da Cantina Escolar", 28500.50, 
-            "3. Em Execução", "Obras iniciadas conforme cronograma físico-financeiro.", 
-            "N/A", 
-            "Emenda Parlamentar Distrital (CLDF)", "Deputado Distrital Exemplo", 
+            "Reforma da Cantina Escolar", 28500.50,
+            "3. Em Execução", "Obras iniciadas conforme cronograma físico-financeiro.",
+            "N/A",
+            "Emenda Parlamentar Distrital (CLDF)", "Deputado Distrital Exemplo",
             "2026NE00189", "Dispensa de Licitação nº 02/2026", "Alfa Construções e Reformas EIRELI", "12.345.678/0001-90",
-            "Mariana Souza (Chefe de Secretaria) (CPF: 987.654.321-11)", "Criacao",
-            chave_privada="CHAVE_PRIVADA_SECRETARIA_MARIANA_2026"
+            "Mariana Souza (Chefe de Secretaria) (ID: secretaria)", "Criacao",
+            chave_privada=secretaria["chave"]
         )
         self.salvar_chain()
         return self.chain
@@ -213,7 +263,7 @@ class BlockchainCEF10:
                     return chain
             except Exception as e:
                 print(f"Erro ao carregar o ledger: {e}.")
-        
+
         return self._gerar_base_inicial()
 
     def salvar_chain(self):
@@ -224,7 +274,7 @@ class BlockchainCEF10:
     def _adicionar_bloco_interno(self, descricao, valor, status, justificativa, foto_path, origem, responsavel, empenho, edital, empresa, cnpj, autor, tipo_registro, chave_privada, projeto_id=None):
         bloco_anterior = self.chain[-1]
         p_id = projeto_id if projeto_id else self.gerar_projeto_id(descricao)
-        
+
         novo_bloco = BlocoFinanceiro(
             index=bloco_anterior.index + 1,
             timestamp=datetime.datetime.now(),
@@ -252,12 +302,14 @@ class BlockchainCEF10:
         self.salvar_chain()
 
     def validar_cadeia(self, tabela_chaves_publicas):
-        """Audita a integridade de hashes, encadeamento e assinaturas HMAC."""
+        """Audita a integridade de hashes, encadeamento e assinaturas HMAC.
+        [AUDITORIA-02] O autor do bloco agora carrega '(ID: <usuario>)' em vez
+        de CPF; a chave correspondente e buscada na tabela por esse ID."""
         for i in range(1, len(self.chain)):
             bloco_atual = self.chain[i]
             bloco_anterior = self.chain[i - 1]
 
-            # 1. Integridade do Hash SHA-256
+            # 1. Integridade do Hash SHA-256 (canonico)
             if bloco_atual.hash != bloco_atual.calcular_hash():
                 return False, f"FRAUDE DETECTADA no Bloco #{bloco_atual.index} ('{bloco_atual.descricao}'): Conteúdo adulterado ilicitamente no banco/JSON!", i
 
@@ -266,14 +318,14 @@ class BlockchainCEF10:
                 return False, f"QUEBRA DE CADEIA entre o Bloco #{bloco_anterior.index} e o Bloco #{bloco_atual.index}!", i
 
             # 3. Assinatura Digital HMAC
-            cpf_autor = None
-            for cpf in tabela_chaves_publicas:
-                if cpf in bloco_atual.autor:
-                    cpf_autor = cpf
+            id_autor = None
+            for usuario_id in tabela_chaves_publicas:
+                if f"(ID: {usuario_id})" in bloco_atual.autor:
+                    id_autor = usuario_id
                     break
-            
-            if cpf_autor and cpf_autor in tabela_chaves_publicas:
-                chave_privada_cadastrada = tabela_chaves_publicas[cpf_autor]["chave_privada"]
+
+            if id_autor and id_autor in tabela_chaves_publicas:
+                chave_privada_cadastrada = tabela_chaves_publicas[id_autor]["chave"]
                 if not bloco_atual.verificar_assinatura(chave_privada_cadastrada):
                     return False, f"ASSINATURA INVÁLIDA no Bloco #{bloco_atual.index}: Chave HMAC não confere com o autor ({bloco_atual.autor})!", i
 
@@ -304,7 +356,7 @@ class BlockchainCEF10:
             self.chain = self.chain[:idx_corrompido]
             self.salvar_chain()
             return True, f"Rollback efetuado com sucesso! Mantidos intactos {len(self.chain)} blocos autênticos. O bloco #{idx_corrompido} e os posteriores foram isolados na quarentena: `{arquivo_quarentena}`."
-        
+
         return False, "Nenhum erro de integridade detectado para fazer rollback."
 
     def obter_projetos_existentes(self):
@@ -314,10 +366,11 @@ class BlockchainCEF10:
                 projetos[bloco.projeto_id] = bloco.descricao
         return projetos
 
+    # [AUDITORIA-02] o reset agora usa as credenciais/secrets vigentes.
     def resetar_base_demonstracao(self):
         """Restaura o arquivo JSON estritamente para os dados iniciais de demonstração."""
         self.realizar_quarentena_forense()
-        self._gerar_base_inicial()
+        self._gerar_base_inicial(self.credenciais, self.chave_genesis)
 
     def obter_dataframe_historico(self):
         """Converte a cadeia de blocos em um DataFrame Pandas formatado para análises e IA."""
@@ -338,4 +391,4 @@ class BlockchainCEF10:
         if not df.empty:
             df["Data"] = pd.to_datetime(df["Data"])
             df["Mes_Ano"] = df["Data"].dt.to_period("M").dt.to_timestamp()
-        return df               
+        return df

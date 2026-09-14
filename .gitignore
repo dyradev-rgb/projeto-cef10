@@ -1,0 +1,22 @@
+# =====================================================================
+# .gitignore - CORRECAO APLICADA
+# Antes o repositório commitava __pycache__ e arquivos de ambiente.
+# Agora fica explícito o que NAO deve ir para o versionamento.
+# =====================================================================
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Segredos - NUNCA versionar credenciais geradas
+.streamlit/secrets.toml
+
+# IDE / SO
+.vscode/
+.idea/
+.DS_Store
+
+# Artefatos de execucao
+*.log

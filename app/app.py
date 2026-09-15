@@ -18,8 +18,7 @@ from fpdf import FPDF
 import io
 import datetime
 
-# [AUDITORIA-04] caminhos absolutos a partir de __file__ (antes dependiam
-# do diretorio corrente, quebrando o app quando executado fora da raiz).
+
 RAIZ_PROJETO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 sys.path.insert(0, RAIZ_PROJETO)
 
@@ -36,7 +35,7 @@ IMAGENS_DIR = os.path.join(RAIZ_PROJETO, "data", "imagens")
 JSON_PATH = os.path.join(RAIZ_PROJETO, "data", "ledger_cef10.json")
 os.makedirs(IMAGENS_DIR, exist_ok=True)
 
-# [AUDITORIA-05] a ledger grava caminhos relativos a raiz do projeto;
+#  a ledger grava caminhos relativos a raiz do projeto;
 # este helper resolve a evidencia independente do CWD.
 def localizar_evidencia(caminho):
     if caminho in ("N/A", ""):
@@ -46,8 +45,8 @@ def localizar_evidencia(caminho):
     return os.path.join(RAIZ_PROJETO, caminho)
 
 # ==========================================
-# CARGA DE CREDENCIAIS - [AUDITORIA-02]
-# Usuarios, senhas (hash PBKDF2) e chaves HMAC NAO ficam mais no codigo.
+# CARGA DE CREDENCIAIS -
+# Usuarios, senhas (hash PBKDF2).
 # Vem de config/seguranca.py (st.secrets ou .streamlit/secrets.toml).
 # ==========================================
 try:
@@ -59,7 +58,7 @@ except RuntimeError as e:
     st.stop()
 
 if 'cofre_escola' not in st.session_state:
-    # [AUDITORIA-02] credenciais e chave do genesis vindas do secrets.
+    # credenciais e chave do genesis vindas do secrets.
     st.session_state.cofre_escola = BlockchainCEF10(
         filepath=JSON_PATH,
         credenciais=USUARIOS_SISTEMA,
@@ -82,7 +81,7 @@ if "autenticado" not in st.session_state:
     st.session_state.id_gestor = ""
     st.session_state.role_gestor = ""
     st.session_state.chave_privada = ""
-    # [AUDITORIA-06] contadores do rate-limit de login
+    # contadores do rate-limit de login
     st.session_state.tentativas_login = 0
     st.session_state.bloqueio_ate = None
 
@@ -97,7 +96,7 @@ cadeia_integra, mensagem_auditoria, idx_corrompido = cofre.validar_cadeia(USUARI
 st.sidebar.header("🔐 Portal de Acesso Restrito")
 
 if not st.session_state.autenticado:
-    # [AUDITORIA-02/06] Login por identificador (ID) + senha com hash PBKDF2
+    # Login por identificador (ID) + senha com hash PBKDF2
     # e trava progressiva: 5 erros -> bloqueio de 30s.
     id_input = st.sidebar.text_input("Identificador do Gestor", placeholder="Ex: diretor")
     senha_input = st.sidebar.text_input("Senha Pessoal", type="password")
@@ -105,7 +104,7 @@ if not st.session_state.autenticado:
 
     agora = datetime.datetime.now()
 
-    # Podia ter esgotado durante a sessao: fecha o bloqueio expirado.
+    
     if st.session_state.bloqueio_ate and agora >= st.session_state.bloqueio_ate:
         st.session_state.bloqueio_ate = None
         st.session_state.tentativas_login = 0
@@ -290,12 +289,7 @@ if st.session_state.autenticado:
         if botao_enviar:
             if descricao_input and valor_input >= 0:
                 caminho_foto_final = "N/A"
-                if arquivo_upload is not None:
-                    # [AUDITORIA-07] CORRECAO do bug: era usado caminho_arquivo_final
-                    # (nunca definido) -> NameError sem anexo. Agora existe UMA
-                    # variavel so (caminho_foto_final).
-                    # [AUDITORIA-08] Sanitizacao do upload: usa apenas o basename
-                    # (mata path traversal via ../) e revalida a extensao no servidor.
+                if arquivo_upload is not None:               
                     nome_limpo = os.path.basename(arquivo_upload.name).replace("\\", "/").split("/")[-1]
                     extensao = os.path.splitext(nome_limpo)[1].lower()
                     extensoes_permitidas = {".jpg", ".jpeg", ".png", ".pdf"}
@@ -307,9 +301,6 @@ if st.session_state.autenticado:
                         caminho_foto_final = os.path.join(IMAGENS_DIR, nome_limpo)
                         with open(caminho_foto_final, "wb") as f:
                             f.write(arquivo_upload.getbuffer())
-
-                # [AUDITORIA-02] autor identificado por "(ID: <usuario>)",
-                # sem CPF nem outros dados pessoais no ledger.
                 autor_completo = f"{st.session_state.nome_gestor} (ID: {st.session_state.id_gestor})"
 
                 cofre.adicionar_bloco(
@@ -524,7 +515,6 @@ def renderizar_lista_projetos(filtro_status=None):
                     st.write(f"🆔 **CNPJ:** `{bloco_atual.cnpj_empresa}`")
 
             # EXIBIÇÃO INTELIGENTE DE PDF OU IMAGEM
-            # [AUDITORIA-05] resolve caminho relativo contra a raiz do projeto
             caminho_evidencia = localizar_evidencia(bloco_atual.foto_path)
             if bloco_atual.foto_path != "N/A" and os.path.exists(caminho_evidencia):
                 if bloco_atual.foto_path.lower().endswith('.pdf'):

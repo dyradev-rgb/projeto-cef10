@@ -1,11 +1,5 @@
 # =====================================================================
 # config/seguranca.py - GERENCIAMENTO CENTRALIZADO DE CREDENCIAIS
-# CORRECAO APLICADA:
-#   - Removeu senhas e chaves em texto puro do codigo-fonte.
-#   - Senhas agora sao hasheadas com PBKDF2-SHA256 (salgado, OWASP).
-#   - Chaves HMAC sao aleatorias e residem fora do repositorio.
-#   - Comparacao de senha em tempo constante (hmac.compare_digest).
-#
 # FONTES DE CREDENCIAIS (ordem de precedencia):
 #   1) st.secrets (Streamlit - recomendado em deploy)
 #   2) Variavel de ambiente CEF10_SECRETS (caminho de um .toml)

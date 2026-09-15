@@ -1,10 +1,9 @@
 # =====================================================================
-# tests/validar_ledger.py - VERIFICADOR INDEPENDENTE DA LEDGER
+# VERIFICADOR INDEPENDENTE DA LEDGER
 # Valida 100% fora do app:
 #   - hash canonico de cada bloco
 #   - encadeamento (previous_hash)
 #   - assinatura HMAC contra as chaves do secrets atual
-# Uso:  python tests/validar_ledger.py
 # =====================================================================
 import json
 import os

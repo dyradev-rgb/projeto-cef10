@@ -1,10 +1,5 @@
 # =====================================================================
-# scripts/gerar_credenciais.py - GERADOR DE CREDENCIAIS LOCAIS
-# SUGESTAO APLICADA:
-#   Cria .streamlit/secrets.toml (NAO versionado) com:
-#     - senhas hasheadas via PBKDF2-SHA256
-#     - chaves HMAC aleatorias por gestor (256 bits)
-# Uso:  python scripts/gerar_credenciais.py
+# GERADOR DE CREDENCIAIS LOCAIS
 # ATENCAO: o arquivo gerado fica fora do git (ver .gitignore).
 # Nao regenere no meio de uma base migrada sem rodar scripts/migrar_ledger.py.
 # =====================================================================

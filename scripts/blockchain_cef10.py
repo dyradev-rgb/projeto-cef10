@@ -3,17 +3,6 @@
 # Autor: Dyego Alquimim
 # Objetivo: Garantir imutabilidade, status de obras, 
 # evidências visuais e persistência de dados em arquivo.
-#
-# -------- REGISTRO DE CORRECOES DESTA VERSAO --------
-# [AUDITORIA-01] Hash canonico: calcular_hash() agora usa timestamp
-#                .isoformat() (formato "T" ISO-8601) em vez de str().
-#                Antes o mesmo conteudo podia gerar 2 hashes diferentes
-#                (espaco vs T), tornando a integridade fragmentada.
-# [AUDITORIA-02] Chaves HMAC e identificadores de gestor deixaram de
-#                ser CPF/chaves hardcoded. A partir de agora as chaves
-#                vêm de config/seguranca.py (st.secrets / secrets.toml).
-# [AUDITORIA-03] foto_path normalizado para "/" (era gravado com "\"
-#                no Windows e nao renderizava em outros sistemas).
 # ==========================================
 import pandas as pd
 import hashlib
@@ -42,7 +31,6 @@ class BlocoFinanceiro:
         self.valor = valor
         self.status = status
         self.justificativa = justificativa
-        # [AUDITORIA-03] caminho normalizado (nunca com "\")
         self.foto_path = self.normalizar_caminho(foto_path)
         self.origem_recurso = origem_recurso
         self.responsavel_indicacao = responsavel_indicacao
@@ -68,9 +56,7 @@ class BlocoFinanceiro:
         return caminho.replace("\\", "/")
 
     def calcular_hash(self):
-        # [AUDITORIA-01] Canonico: usa .isoformat() (com "T").
-        # Corrige a inconsistencia anterior em que str(datetime) (espaco)
-        # era usado aqui mas to_dict() gravava ISO (T).
+    
         conteudo = (
             str(self.index) +
             self.timestamp.isoformat() +
@@ -123,7 +109,6 @@ class BlocoFinanceiro:
             "valor": self.valor,
             "status": self.status,
             "justificativa": self.justificativa,
-            # [AUDITORIA-03] gravado sempre com separador "/"
             "foto_path": self.normalizar_caminho(self.foto_path),
             "origem_recurso": self.origem_recurso,
             "responsavel_indicacao": self.responsavel_indicacao,
@@ -142,8 +127,6 @@ class BlockchainCEF10:
     def __init__(self, filepath="data/ledger_cef10.json", credenciais=None, chave_genesis=None):
         self.filepath = filepath
         self.quarentena_dir = "data/quarentena"
-        # [AUDITORIA-02] credenciais e chave do genesis vêm de config/seguranca.py.
-        # Na ausencia, tenta carregar do secrets local em _gerar_base_inicial.
         self.credenciais = credenciais if credenciais is not None else {}
         self.chave_genesis = chave_genesis
         self.ensure_data_dir()
@@ -156,7 +139,6 @@ class BlockchainCEF10:
         if not os.path.exists(self.quarentena_dir):
             os.makedirs(self.quarentena_dir, exist_ok=True)
 
-    # [AUDITORIA-02] chave do genesis recebida por parametro (nunca hardcoded).
     def criar_bloco_genesis(self, chave_genesis=None):
         if not chave_genesis:
             raise RuntimeError(
@@ -188,8 +170,6 @@ class BlockchainCEF10:
     def gerar_projeto_id(self, descricao):
         return re.sub(r'[^a-z0-9]', '_', descricao.lower().strip())
 
-    # [AUDITORIA-02] base de demonstracao sem CPF e sem chaves hardcoded;
-    # identifica gestor por "(ID: <id>)" e assina com a chave do secrets.
     def _gerar_base_inicial(self, credenciais=None, chave_genesis=None):
         credenciais = credenciais if credenciais is not None else self.credenciais
         chave_genesis = chave_genesis or self.chave_genesis
@@ -366,7 +346,7 @@ class BlockchainCEF10:
                 projetos[bloco.projeto_id] = bloco.descricao
         return projetos
 
-    # [AUDITORIA-02] o reset agora usa as credenciais/secrets vigentes.
+    # reset usa as credenciais/secrets vigentes.
     def resetar_base_demonstracao(self):
         """Restaura o arquivo JSON estritamente para os dados iniciais de demonstração."""
         self.realizar_quarentena_forense()

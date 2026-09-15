@@ -1,7 +1,6 @@
 # =====================================================================
-# .gitignore - CORRECAO APLICADA
-# Antes o repositório commitava __pycache__ e arquivos de ambiente.
-# Agora fica explícito o que NAO deve ir para o versionamento.
+# .gitignore
+#  Explícita o que NAO deve ir para o versionamento.
 # =====================================================================
 
 # Python
